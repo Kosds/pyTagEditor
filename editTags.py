@@ -1,6 +1,6 @@
 def putFromName(path):
     import os, re
-    from mutagen.mp3 import MP3 as mp3
+    from mutagen.mp3 import EasyMP3 as mp3
     if path[-1] != '/':
         path += '/'
     try:        
@@ -15,11 +15,15 @@ def putFromName(path):
             except ValueError:
                 continue
             else:
+                '''
                 for item in list(track.keys()):
                     if re.match('TPE', item):
                         track[item]=artist.title()
                     if re.match('TIT',item):
                         track[item]=title.title()
+                '''
+                track['title'] = title
+                track['artist'] = artist
                 track.save()                
         print('Завершено')
 
