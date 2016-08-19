@@ -3,5 +3,5 @@
 /_linux/
 /inspection/
 *.xml
-Будет удалено testScript.py
-Будет удалено __pycache__/
+/testScript.py
+/__pycache__/
