@@ -15,7 +15,7 @@ def putFromName(path):
             except ValueError:
                 continue
             else:
-                for item in list(track.__track.keys()):
+                for item in list(track.keys()):
                     if re.match('TPE', item):
                         track[item]=artist.title()
                     if re.match('TIT',item):
@@ -26,8 +26,8 @@ def putFromName(path):
 def clearAlbums(path):
     import os
     from mutagen.mp3 import MP3 as mp3    
-    if path[-1]!='/': 
-        path+='/'
+    if path[-1] != '/':
+        path += '/'
     try:        
         files=filter(lambda x: x.endswith('.mp3'),os.listdir(path))
     except OSError:
