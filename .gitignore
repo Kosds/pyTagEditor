@@ -1,1 +1,7 @@
 /lastFmData.py~
+/.idea/
+/_linux/
+/inspection/
+*.xml
+Будет удалено testScript.py
+Будет удалено __pycache__/
