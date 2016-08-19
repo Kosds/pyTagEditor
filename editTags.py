@@ -1,3 +1,4 @@
+#todo: with EasyMP3 without mutagen.mp3
 def putFromName(path):
     import os, re
     from mutagen.mp3 import EasyMP3 as mp3
