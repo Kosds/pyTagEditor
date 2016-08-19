@@ -15,13 +15,6 @@ def putFromName(path):
             except ValueError:
                 continue
             else:
-                '''
-                for item in list(track.keys()):
-                    if re.match('TPE', item):
-                        track[item]=artist.title()
-                    if re.match('TIT',item):
-                        track[item]=title.title()
-                '''
                 track['title'] = title
                 track['artist'] = artist
                 track.save()                
