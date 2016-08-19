@@ -3,5 +3,4 @@
 /_linux/
 /inspection/
 *.xml
-/testScript.py
 /__pycache__/
