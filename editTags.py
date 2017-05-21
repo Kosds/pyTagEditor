@@ -1,140 +1,141 @@
-#todo: with EasyMP3 without mutagen.mp3
-def putFromName(path):
-    import os, re
-    from mutagen.mp3 import EasyMP3 as mp3
+# todo: with EasyMP3 without mutagen.mp3
+def put_from_name(path):
+    import os
+    from mutagen.mp3 import EasyMP3 as Emp3
     if path[-1] != '/':
         path += '/'
-    try:        
-        files = filter(lambda x: x.endswith('.mp3'), os.listdir(path))
+    try:
+        names = filter(lambda x: x.endswith('.mp3'), os.listdir(path))
     except OSError:
         print('Error of path')
     else:
-        for name in files:    
-            track = mp3(path + name)
+        for name in names:
+            track = Emp3(path + name)
             try:
-                artist, title = name[0:-4].split(' - ')
+                artist, title = name[0:-4].split(' - ', maxsplit=2)
             except ValueError:
                 continue
             else:
                 track['title'] = title
                 track['artist'] = artist
-                track.save()                
+                track.save()
         print('Завершено')
 
-def clearAlbums(path):
+
+def clear_albums(path):
     import os
-    from mutagen.mp3 import MP3 as mp3    
+    from mutagen.mp3 import EasyMP3
     if path[-1] != '/':
         path += '/'
-    try:        
-        files=filter(lambda x: x.endswith('.mp3'),os.listdir(path))
-    except OSError:
-        print('Error of path')
-    else:
-        finded=False
-        for name in files:
-            track=mp3(path+name)
-            if 'TALB' in list(track.keys()) and len(track['TALB'].text[0])>0 and '.' in track['TALB'].text[0]:
-                print(track['TALB'].text[0]+' | y/n')
-                finded=True
-                if input()=='y':
-                    track['TALB'].text[0]=' '
-                    track.save()
-                else: continue
-        if ~finded: print('Не найдены')
-        print('Завершено')
+    if not os.path.exists(path):
+        print("Path error\n")
+        return
+    files = list(filter(lambda x: x.endswith('.mp3'), os.listdir(path)))
+    found = False
+    for name in files:
+        track = EasyMP3(path + name)
+        if not ('album' in track.keys() and '.' in track['album'][0]):
+            continue
+        found = True
+        print(track['album'][0] + ' | y/n')
+        key = input()
+        if key == 'y':  # Todo get pressed key
+            track['album'][0] = ''  # Todo doesn't change
+            track.save()
+    if not found:
+        print('Не найдены')
+    print('Завершено')
 
-class trackTags(object):
-    def __init__(self, trackPath):
-        from mutagen.mp3 import MP3 as mp3
+
+class TrackTags(object):
+    def __init__(self, path):
+        from mutagen.mp3 import EasyMP3
+        from mutagen.mp3 import MP3
         try:
-            self.__track = mp3(trackPath)
+            self.__EasyMP3 = EasyMP3(path)
+            self.__MP3 = MP3(path)
         except FileNotFoundError:
             print('Error path')
 
-    def getAlbumTitle(self):
+    def __get_with_key(self, key):
+        if key in self.__EasyMP3.keys():
+            return self.__EasyMP3[key]
+        return None
+
+    def get_album_title(self):
+        return self.__get_with_key('album')
+
+    def get_album_picture(self):
         import re
-        for item in list(self.__track.keys()):
-            if re.match('TAL', item):
-                return self.__track[item].text[0]
-        raise RuntimeError('Альбом не задан')
-    
-    def getAlbumPicture(self):
-        import re
-        for item in list(self.__track.keys()):
-            if re.match('APIC',item):
-                return self.__track[item].data
+        for item in list(self.__MP3.keys()):
+            if re.match('APIC', item):
+                return self.__EasyMP3[item].data
         raise RuntimeError('Обложка не задана')
 
-    def getArtist(self):
-        import re
-        for item in list(self.__track.keys()):
-            if re.match('TPE', item):
-                return self.__track[item].text[0]
-        raise RuntimeError('Исполнитель не задан')
+    def get_artist(self):
+        return self.__get_with_key('artist')
 
-    def getTitle(self):
-        import re
-        for item in list(self.__track.keys()):
-            if re.match('TIT', item):
-                return self.__track[item].text[0]
-        raise RuntimeError('Название не задано')
+    def get_title(self):
+        return self.__get_with_key('title')
 
-    def setAlbumTitle(self,albumTitle):
+    def set_album_title(self, album_title):
         from mutagen import id3
-        self.__track['TALB'] = id3.TALB(encoding = 3, text = albumTitle)
-        self.__track.save()
+        self.__EasyMP3['TALB'] = id3.TALB(encoding=3, text=album_title)
+        self.__EasyMP3.save()
         del id3
 
-    def setAlbumPicture(self,pictureStr):
+    def set_picture(self, picture_string):
         from mutagen import id3
         import re
 
         flag = False
-        for item in list(self.__track.keys()):
+        for item in list(self.__EasyMP3.keys()):
             if re.match('APIC', item):
-                self.__track.tags.pop(item)
-        self.__track.tags['APIC:'] = id3.APIC(encoding=3, mime='image/jpeg', type=3, data=pictureStr)
-        self.__track.save(v1=2)
+                self.__EasyMP3.tags.pop(item)
+        self.__EasyMP3.tags['APIC:'] = id3.APIC(encoding=3, mime='image/jpeg',
+                                                type=3, data=picture_string)
+        self.__EasyMP3.save(v1=2)
         del id3
 
-    def setArtist(self,artistName):
+    def set_artist(self, artistName):
         from mutagen import id3
-        self.__track['TPE1'] = id3.TPE1(encoding=3, text=artistName)
-        self.__track.save()
+        self.__EasyMP3['TPE1'] = id3.TPE1(encoding=3, text=artistName)
+        self.__EasyMP3.save()
         del id3
 
-    def setTitle(self,trackTitle):
+    def set_title(self, trackTitle):
         from mutagen import id3
-        self.__track['TIT1'] = id3.TIT1(encoding = 3, text = trackTitle)
-        self.__track.save()
+        self.__EasyMP3['TIT1'] = id3.TIT1(encoding=3, text=trackTitle)
+        self.__EasyMP3.save()
         del id3
 
-    def setAlbumPictureLastFm(self):
-        xml = self.__getXML()
-        pictureUrl = self.__getPictureUrlFromXml(xml)
-        pictureName = self.__getPictureFile(pictureUrl)
-        self.__setPicture(pictureName)
+    def set_picture_from_last_fm(self):
+        xml = self.__get_xml()
+        pictureUrl = self.__get_picture_url_from_xml(xml)
+        pictureName = self.__get_picture_file(pictureUrl)
+        self.__set_picture(pictureName)
 
-    def __getJSON(self):
+    def __get_json(self):
         import requests as rl
 
         API_KEY = '70578b40668e460c6282ee394e448586'
         URL = 'ws.audioscrobbler.com'
-        temp = self.getTitle()
-        parametersDict=dict(api_key = API_KEY, artist = self.getArtist(), track = temp, method = 'track.getinfo',format = 'json')
+        temp = self.get_title()
+        parametersDict = dict(api_key=API_KEY, artist=self.get_artist(),
+                              track=temp, method='track.getinfo', format='json')
         try:
-            response = rl.get('http://'+URL+'/2.0/',parametersDict)
+            response = rl.get('http://' + URL + '/2.0/', parametersDict)
         except rl.exceptions.RequestException as e:
             print('Ошибка: ' + e.strerror)
         else:
             return response.json()
 
-    def __getXML(self):
+    def __get_xml(self):
         import requests as rl
         API_KEY = '70578b40668e460c6282ee394e448586'
         URL = 'ws.audioscrobbler.com'
-        parametersDict = dict(api_key=API_KEY, artist=self.getArtist(), track=self.getTitle(), method='track.getinfo')
+        parametersDict = dict(api_key=API_KEY, artist=self.get_artist(),
+                              track=self.get_title(), method='track.getinfo')
         try:
             response = rl.get('http://' + URL + '/2.0/', parametersDict)
         except rl.exceptions.RequestException as e:
@@ -142,25 +143,25 @@ class trackTags(object):
         else:
             return response.text
 
-    def __getPictureUrlFromXml(self,xml):
+    def __get_picture_url_from_xml(self, xml):
         from bs4 import BeautifulSoup as bs
         result = bs(xml, 'xml')
-        if result.find('image',size='extralarge') != None:
-            return result.find('image',size='extralarge').text
-        elif result.find('image',size='large') != None:
-            return result.find('image',size='large').text
+        if result.find('image', size='extralarge') != None:
+            return result.find('image', size='extralarge').text
+        elif result.find('image', size='large') != None:
+            return result.find('image', size='large').text
         else:
             return ''
 
-    def __getPictureFile(self, url):
+    def __get_picture_file(self, url):
         import urllib as ul
         from PIL import Image
 
         if url == '':
             return 'gag.jpg'
 
-        temp = 'temp'+url[url.rfind('.'):]
-        pictureFile = open(temp,'wb')
+        temp = 'temp' + url[url.rfind('.'):]
+        pictureFile = open(temp, 'wb')
         try:
             pictureStr = ul.request.urlopen(url).read()
         except ul.error.URLError:
@@ -172,15 +173,15 @@ class trackTags(object):
             pic.save('temp.jpg')
             return 'temp.jpg'
 
-    def __setPicture(self,fileName):
+    def __set_picture(self, fileName):
         if fileName == '':
             return
         try:
-            pictureFile = open(fileName,'rb')
-            pictureStr = pictureFile.read()
+            pictureFile = open(fileName, 'rb')
+            picture_bytes = pictureFile.read()
         except OSError('Неверное имя файла') as e:
             print(e.strerror)
         else:
-             self.setAlbumPicture(pictureStr)
+            self.set_picture(picture_bytes)
         finally:
             pictureFile.close()
