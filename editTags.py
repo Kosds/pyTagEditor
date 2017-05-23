@@ -88,7 +88,6 @@ class TrackTags(object):
         from mutagen import id3
         import re
 
-        flag = False
         for item in list(self.__EasyMP3.keys()):
             if re.match('APIC', item):
                 self.__EasyMP3.tags.pop(item)
@@ -97,63 +96,67 @@ class TrackTags(object):
         self.__EasyMP3.save(v1=2)
         del id3
 
-    def set_artist(self, artistName):
+    def set_artist(self, artist):
         from mutagen import id3
-        self.__EasyMP3['TPE1'] = id3.TPE1(encoding=3, text=artistName)
+        self.__EasyMP3['TPE1'] = id3.TPE1(encoding=3, text=artist)
         self.__EasyMP3.save()
         del id3
 
-    def set_title(self, trackTitle):
+    def set_title(self, title):
         from mutagen import id3
-        self.__EasyMP3['TIT1'] = id3.TIT1(encoding=3, text=trackTitle)
+        self.__EasyMP3['TIT1'] = id3.TIT1(encoding=3, text=title)
         self.__EasyMP3.save()
         del id3
 
     def set_picture_from_last_fm(self):
         xml = self.__get_xml()
-        pictureUrl = self.__get_picture_url_from_xml(xml)
-        pictureName = self.__get_picture_file(pictureUrl)
-        self.__set_picture(pictureName)
+        picture_url = self.__get_picture_url_from_xml(xml)
+        picture_name = self.__get_picture_file(picture_url)
+        self.__set_picture(picture_name)
 
     def __get_json(self):
         import requests as rl
+        import lastFmData
 
-        API_KEY = '70578b40668e460c6282ee394e448586'
-        URL = 'ws.audioscrobbler.com'
         temp = self.get_title()
-        parametersDict = dict(api_key=API_KEY, artist=self.get_artist(),
-                              track=temp, method='track.getinfo', format='json')
+        parameters_dict = {'api_key': lastFmData.API_KEY,
+                           'artist': self.get_artist(), 'track': temp,
+                           'method': 'track.getinfo', 'format': 'json'}
         try:
-            response = rl.get('http://' + URL + '/2.0/', parametersDict)
+            response = rl.get('http://' + lastFmData.URL + '/2.0/',
+                              parameters_dict)
         except rl.exceptions.RequestException as e:
             print('Ошибка: ' + e.strerror)
-        else:
-            return response.json()
+        return response.json()
 
     def __get_xml(self):
         import requests as rl
-        API_KEY = '70578b40668e460c6282ee394e448586'
-        URL = 'ws.audioscrobbler.com'
-        parametersDict = dict(api_key=API_KEY, artist=self.get_artist(),
-                              track=self.get_title(), method='track.getinfo')
+        import lastFmData
+
+        parameters_dict = {'api_key': lastFmData.API_KEY,
+                           'artist': self.get_artist(),
+                           'track': self.get_title(), 'method': 'track.getinfo'}
         try:
-            response = rl.get('http://' + URL + '/2.0/', parametersDict)
+            response = rl.get('http://' + lastFmData.URL + '/2.0/',
+                              parameters_dict)
         except rl.exceptions.RequestException as e:
             print('Ошибка: ' + e.strerror)
         else:
             return response.text
 
-    def __get_picture_url_from_xml(self, xml):
-        from bs4 import BeautifulSoup as bs
-        result = bs(xml, 'xml')
-        if result.find('image', size='extralarge') != None:
+    @staticmethod
+    def __get_picture_url_from_xml(xml):
+        from bs4 import BeautifulSoup
+        result = BeautifulSoup(xml, 'xml')
+        if result.find('image', size='extralarge') is not None:
             return result.find('image', size='extralarge').text
-        elif result.find('image', size='large') != None:
+        elif result.find('image', size='large') is not None:
             return result.find('image', size='large').text
         else:
             return ''
 
-    def __get_picture_file(self, url):
+    @staticmethod
+    def __get_picture_file(url):
         import urllib as ul
         from PIL import Image
 
@@ -173,11 +176,11 @@ class TrackTags(object):
             pic.save('temp.jpg')
             return 'temp.jpg'
 
-    def __set_picture(self, fileName):
-        if fileName == '':
+    def __set_picture(self, file_name):
+        if file_name == '':
             return
         try:
-            pictureFile = open(fileName, 'rb')
+            pictureFile = open(file_name, 'rb')
             picture_bytes = pictureFile.read()
         except OSError('Неверное имя файла') as e:
             print(e.strerror)
