@@ -1,0 +1,10 @@
+appdirs==1.4.3
+beautifulsoup4==4.6.0
+mutagen==1.37
+olefile==0.44
+packaging==16.8
+Pillow==4.1.1
+pylast==1.8.0
+pyparsing==2.2.0
+requests==2.14.2
+six==1.10.0
