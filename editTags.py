@@ -1,25 +1,31 @@
-# todo: with EasyMP3 without mutagen.mp3
 def put_from_name(path):
     import os
     from mutagen.mp3 import EasyMP3 as Emp3
     if path[-1] != '/':
         path += '/'
-    try:
-        names = filter(lambda x: x.endswith('.mp3'), os.listdir(path))
-    except OSError:
-        print('Error of path')
-    else:
-        for name in names:
-            track = Emp3(path + name)
-            try:
-                artist, title = name[0:-4].split(' - ', maxsplit=2)
-            except ValueError:
-                continue
-            else:
-                track['title'] = title
-                track['artist'] = artist
-                track.save()
-        print('Завершено')
+    if path[0] == "~":
+        path = os.path.expanduser(path)
+    path = os.path.abspath(path)
+    if not os.path.exists(path):
+        print("Path error")
+        return
+    wrong_names = []
+    names = filter(lambda x: x.endswith('.mp3'), os.listdir(path))
+    for name in names:
+        track = Emp3(path + name)
+        try:
+            artist, title = name[0:-4].split(' - ', maxsplit=2)
+        except ValueError:
+            wrong_names.append(name)
+            continue
+        track['title'] = title
+        track['artist'] = artist
+        track.save()
+    print('Завершено')
+    if len(wrong_names) != 0:
+        print("Ошибочные имена файлов: ")
+        for name in wrong_names:
+            print(name)
 
 
 def clear_albums(path):
@@ -27,6 +33,9 @@ def clear_albums(path):
     from mutagen.mp3 import EasyMP3
     if path[-1] != '/':
         path += '/'
+    if path[0] == "~":
+        path = os.path.expanduser(path)
+    path = os.path.abspath(path)
     if not os.path.exists(path):
         print("Path error\n")
         return
@@ -39,8 +48,8 @@ def clear_albums(path):
         found = True
         print(track['album'][0] + ' | y/n')
         key = input()
-        if key == 'y':  # Todo get pressed key
-            track['album'][0] = ''  # Todo doesn't change
+        if key == 'y':
+            track['album'] = ""
             track.save()
     if not found:
         print('Не найдены')
@@ -51,21 +60,24 @@ class TrackTags(object):
     def __init__(self, path):
         from mutagen.mp3 import EasyMP3
         from mutagen.mp3 import MP3
-        try:
-            self.__EasyMP3 = EasyMP3(path)
-            self.__MP3 = MP3(path)
-        except FileNotFoundError:
-            print('Error path')
+        import os
+        if path[0] == "~":
+            path = os.path.expanduser(path)
+        path = os.path.abspath(path)
+        if not os.path.exists(path):
+            raise FileNotFoundError("Path error")
+        self.__EasyMP3 = EasyMP3(path)
+        self.__MP3 = MP3(path)
 
     def __get_with_key(self, key):
         if key in self.__EasyMP3.keys():
             return self.__EasyMP3[key]
         return None
 
-    def get_album_title(self):
+    def get_album(self):
         return self.__get_with_key('album')
 
-    def get_album_picture(self):
+    def get_picture(self):
         import re
         for item in list(self.__MP3.keys()):
             if re.match('APIC', item):
@@ -97,16 +109,12 @@ class TrackTags(object):
         del id3
 
     def set_artist(self, artist):
-        from mutagen import id3
-        self.__EasyMP3['TPE1'] = id3.TPE1(encoding=3, text=artist)
+        self.__EasyMP3["artist"] = artist
         self.__EasyMP3.save()
-        del id3
 
     def set_title(self, title):
-        from mutagen import id3
-        self.__EasyMP3['TIT1'] = id3.TIT1(encoding=3, text=title)
+        self.__EasyMP3['title'] = title
         self.__EasyMP3.save()
-        del id3
 
     def set_picture_from_last_fm(self):
         xml = self.__get_xml()
@@ -115,7 +123,7 @@ class TrackTags(object):
         self.__set_picture(picture_name)
 
     def __get_json(self):
-        import requests as rl
+        import requests
         import lastFmData
 
         temp = self.get_title()
@@ -123,9 +131,8 @@ class TrackTags(object):
                            'artist': self.get_artist(), 'track': temp,
                            'method': 'track.getinfo', 'format': 'json'}
         try:
-            response = rl.get('http://' + lastFmData.URL + '/2.0/',
-                              parameters_dict)
-        except rl.exceptions.RequestException as e:
+            response = requests.get('http://' + lastFmData.URL + '/2.0/', parameters_dict)
+        except requests.exceptions.RequestException as e:
             print('Ошибка: ' + e.strerror)
         return response.json()
 
@@ -147,7 +154,7 @@ class TrackTags(object):
     @staticmethod
     def __get_picture_url_from_xml(xml):
         from bs4 import BeautifulSoup
-        result = BeautifulSoup(xml, 'xml')
+        result = BeautifulSoup(xml, "xml")
         if result.find('image', size='extralarge') is not None:
             return result.find('image', size='extralarge').text
         elif result.find('image', size='large') is not None:
@@ -157,34 +164,27 @@ class TrackTags(object):
 
     @staticmethod
     def __get_picture_file(url):
-        import urllib as ul
+        import urllib
         from PIL import Image
-
         if url == '':
             return 'gag.jpg'
-
         temp = 'temp' + url[url.rfind('.'):]
-        pictureFile = open(temp, 'wb')
+        picture = open(temp, 'wb')
         try:
-            pictureStr = ul.request.urlopen(url).read()
-        except ul.error.URLError:
+            picture_bytes = urllib.request.urlopen(url).read()
+        except urllib.error.URLError:
             return ''
         else:
-            pictureFile.write(pictureStr)
-            pictureFile.close()
+            picture.write(picture_bytes)
+            picture.close()
             pic = Image.open(temp)
             pic.save('temp.jpg')
             return 'temp.jpg'
 
     def __set_picture(self, file_name):
-        if file_name == '':
+        import os
+        if not os.path.exists(file_name):
             return
-        try:
-            pictureFile = open(file_name, 'rb')
-            picture_bytes = pictureFile.read()
-        except OSError('Неверное имя файла') as e:
-            print(e.strerror)
-        else:
+        with open(file_name, 'rb') as picture_file:
+            picture_bytes = picture_file.read()
             self.set_picture(picture_bytes)
-        finally:
-            pictureFile.close()
