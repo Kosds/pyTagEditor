@@ -59,7 +59,6 @@ def clear_albums(path):
 class TrackTags(object):
     def __init__(self, path):
         from mutagen.mp3 import EasyMP3
-        from mutagen.mp3 import MP3
         import os
         if path[0] == "~":
             path = os.path.expanduser(path)
@@ -67,7 +66,7 @@ class TrackTags(object):
         if not os.path.exists(path):
             raise FileNotFoundError("Path error")
         self.__EasyMP3 = EasyMP3(path)
-        self.__MP3 = MP3(path)
+        self.__path = path
 
     def __get_with_key(self, key):
         if key in self.__EasyMP3.keys():
@@ -75,52 +74,61 @@ class TrackTags(object):
         return None
 
     def get_album(self):
-        return self.__get_with_key('album')
+        return self.__get_with_key("album")
 
     def get_picture(self):
         import re
-        for item in list(self.__MP3.keys()):
-            if re.match('APIC', item):
-                return self.__EasyMP3[item].data
-        raise RuntimeError('Обложка не задана')
+        from mutagen.mp3 import MP3
+        track = MP3(self.__path)
+        for tag_type in list(track.keys()):
+            if re.match('APIC', tag_type):
+                return track[tag_type].data
+        return None
 
     def get_artist(self):
-        return self.__get_with_key('artist')
+        return self.__get_with_key("artist")
 
     def get_title(self):
-        return self.__get_with_key('title')
+        return self.__get_with_key("title")
 
-    def set_album_title(self, album_title):
-        from mutagen import id3
-        self.__EasyMP3['TALB'] = id3.TALB(encoding=3, text=album_title)
+    def set_album(self, album_title):
+        self.__EasyMP3["album"] = album_title
         self.__EasyMP3.save()
-        del id3
 
-    def set_picture(self, picture_string):
+    def set_picture(self, picture_bytes):
         from mutagen import id3
+        from mutagen.mp3 import MP3
         import re
-
-        for item in list(self.__EasyMP3.keys()):
-            if re.match('APIC', item):
-                self.__EasyMP3.tags.pop(item)
-        self.__EasyMP3.tags['APIC:'] = id3.APIC(encoding=3, mime='image/jpeg',
-                                                type=3, data=picture_string)
-        self.__EasyMP3.save(v1=2)
-        del id3
+        track = MP3(self.__path)
+        for tag_type in list(track.keys()):
+            if re.match('APIC', tag_type):
+                track.tags.pop(tag_type)
+        track.tags['APIC:'] = id3.APIC(encoding=3, mime='image/jpeg', type=3, data=picture_bytes)
+        track.save(v1=2)
 
     def set_artist(self, artist):
         self.__EasyMP3["artist"] = artist
         self.__EasyMP3.save()
 
     def set_title(self, title):
-        self.__EasyMP3['title'] = title
+        self.__EasyMP3["title"] = title
         self.__EasyMP3.save()
 
     def set_picture_from_last_fm(self):
+        import os
         xml = self.__get_xml()
         picture_url = self.__get_picture_url_from_xml(xml)
-        picture_name = self.__get_picture_file(picture_url)
-        self.__set_picture(picture_name)
+        picture_file = self.__get_picture_file(picture_url)
+        self.__set_picture(picture_file)
+        os.unlink(picture_file)
+
+    def set_album_from_last_fm(self):
+        from bs4 import BeautifulSoup
+        xml = self.__get_xml()
+        parser = BeautifulSoup(xml, "xml")
+        album = parser.find("title")
+        if (album is not None):
+            self.set_album(album.text)
 
     def __get_json(self):
         import requests
@@ -132,9 +140,9 @@ class TrackTags(object):
                            'method': 'track.getinfo', 'format': 'json'}
         try:
             response = requests.get('http://' + lastFmData.URL + '/2.0/', parameters_dict)
+            return response.json()
         except requests.exceptions.RequestException as e:
-            print('Ошибка: ' + e.strerror)
-        return response.json()
+            print('Error: ' + e.strerror)
 
     def __get_xml(self):
         import requests as rl
@@ -142,14 +150,27 @@ class TrackTags(object):
 
         parameters_dict = {'api_key': lastFmData.API_KEY,
                            'artist': self.get_artist(),
-                           'track': self.get_title(), 'method': 'track.getinfo'}
+                           'track': self.get_title(),
+                           'method': "track.getinfo"}
         try:
-            response = rl.get('http://' + lastFmData.URL + '/2.0/',
-                              parameters_dict)
+            response = rl.get('http://' + lastFmData.URL + '/2.0/', parameters_dict)
+            return response.text
         except rl.exceptions.RequestException as e:
             print('Ошибка: ' + e.strerror)
-        else:
+
+    def __get_album_xml(self):
+        import requests as rl
+        import lastFmData
+
+        parameters_dict = {'api_key': lastFmData.API_KEY,
+                           'artist': self.get_artist(),
+                           'album': self.get_album(),
+                           'method': "album.getinfo"}
+        try:
+            response = rl.get('http://' + lastFmData.URL + '/2.0/', parameters_dict)
             return response.text
+        except rl.exceptions.RequestException as e:
+            print('Ошибка: ' + e.strerror)
 
     @staticmethod
     def __get_picture_url_from_xml(xml):
@@ -164,22 +185,24 @@ class TrackTags(object):
 
     @staticmethod
     def __get_picture_file(url):
-        import urllib
+        import urllib.request as url_request
+        import urllib.error
+        import os
         from PIL import Image
         if url == '':
-            return 'gag.jpg'
-        temp = 'temp' + url[url.rfind('.'):]
-        picture = open(temp, 'wb')
+            return ''
+        temp_file = 'temp' + url[url.rfind('.'):]
         try:
-            picture_bytes = urllib.request.urlopen(url).read()
+            picture_bytes = url_request.urlopen(url).read()
         except urllib.error.URLError:
             return ''
-        else:
-            picture.write(picture_bytes)
-            picture.close()
-            pic = Image.open(temp)
-            pic.save('temp.jpg')
-            return 'temp.jpg'
+        picture = open(temp_file, 'wb')
+        picture.write(picture_bytes)
+        picture.close()
+        pic = Image.open(temp_file)
+        pic.save('temp.jpg')
+        os.unlink(temp_file)
+        return 'temp.jpg'
 
     def __set_picture(self, file_name):
         import os
