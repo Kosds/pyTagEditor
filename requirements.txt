@@ -1,6 +1,6 @@
-beautifulsoup4==4.6.0
-mutagen==1.37
-Pillow==4.1.1
-pylast==1.8.0
-requests==2.14.2
-lxml==3.8.0
+beautifulsoup4>=4.6.0
+mutagen>=1.37
+Pillow>=4.1.1
+pylast>=1.8.0
+requests>=2.14.2
+lxml>=3.8.0
