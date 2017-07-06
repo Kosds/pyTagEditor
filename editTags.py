@@ -119,10 +119,11 @@ class TrackTags(object):
         picture_url = self.__get_picture_url(xml)
         if picture_url is None:
             return
+        PICTURE_FILE = "temp.jpg"
         try:
-            picture_file = self.__save_picture_file(picture_url)
-            self.__set_picture(picture_file)
-            os.unlink(picture_file)
+            self.__save_picture_file(picture_url, PICTURE_FILE)
+            self.__set_picture(PICTURE_FILE)
+            os.unlink(PICTURE_FILE)
         except Exception as e:
             print(e)
 
