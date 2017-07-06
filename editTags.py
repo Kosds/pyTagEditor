@@ -5,7 +5,8 @@ def put_from_name(path):
         path += '/'
     if path[0] == "~":
         path = os.path.expanduser(path)
-    path = os.path.abspath(path)
+    else:
+        path = os.path.abspath(path)
     if not os.path.exists(path):
         print("Path error")
         return
@@ -35,7 +36,8 @@ def clear_albums(path):
         path += '/'
     if path[0] == "~":
         path = os.path.expanduser(path)
-    path = os.path.abspath(path)
+    else:
+        path = os.path.abspath(path)
     if not os.path.exists(path):
         print("Path error\n")
         return
@@ -62,19 +64,19 @@ class TrackTags(object):
         import os
         if path[0] == "~":
             path = os.path.expanduser(path)
-        path = os.path.abspath(path)
+        else:
+            path = os.path.abspath(path)
         if not os.path.exists(path):
             raise FileNotFoundError("Path error")
         self.__EasyMP3 = EasyMP3(path)
         self.__path = path
 
-    def __get_with_key(self, key):
-        if key in self.__EasyMP3.keys():
-            return self.__EasyMP3[key]
-        return None
-
     def get_album(self):
         return self.__get_with_key("album")
+
+    def set_album(self, album_title):
+        self.__EasyMP3["album"] = album_title
+        self.__EasyMP3.save()
 
     def get_picture(self):
         import re
@@ -84,16 +86,6 @@ class TrackTags(object):
             if re.match('APIC', tag_type):
                 return track[tag_type].data
         return None
-
-    def get_artist(self):
-        return self.__get_with_key("artist")
-
-    def get_title(self):
-        return self.__get_with_key("title")
-
-    def set_album(self, album_title):
-        self.__EasyMP3["album"] = album_title
-        self.__EasyMP3.save()
 
     def set_picture(self, picture_bytes):
         import mutagen
@@ -107,9 +99,15 @@ class TrackTags(object):
         track.tags['APIC:'] = pic
         track.save(v1=2)
 
+    def get_artist(self):
+        return self.__get_with_key("artist")
+
     def set_artist(self, artist):
         self.__EasyMP3["artist"] = artist
         self.__EasyMP3.save()
+
+    def get_title(self):
+        return self.__get_with_key("title")
 
     def set_title(self, title):
         self.__EasyMP3["title"] = title
@@ -118,37 +116,49 @@ class TrackTags(object):
     def set_picture_from_last_fm(self):
         import os
         xml = self.__get_xml()
-        picture_url = self.__get_picture_url_from_xml(xml)
-        picture_file = self.__get_picture_file(picture_url)
-        self.__set_picture(picture_file)
-        os.unlink(picture_file)
+        picture_url = self.__get_picture_url(xml)
+        if picture_url is None:
+            return
+        try:
+            picture_file = self.__save_picture_file(picture_url)
+            self.__set_picture(picture_file)
+            os.unlink(picture_file)
+        except Exception as e:
+            print(e)
 
     def set_album_from_last_fm(self):
         from bs4 import BeautifulSoup
         xml = self.__get_xml()
-        parser = BeautifulSoup(xml, "xml")
-        album = parser.find("title")
+        if xml is None:
+            return
+        xml_finder = BeautifulSoup(xml, "xml")
+        album = xml_finder.find("title")
         if album is not None:
             self.set_album(album.text)
+
+    def __get_with_key(self, key):
+        if key in self.__EasyMP3.keys():
+            return self.__EasyMP3[key]
+        return None
 
     def __get_json(self):
         import requests
         import lastFmData
-
-        temp = self.get_title()
         parameters_dict = {'api_key': lastFmData.API_KEY,
-                           'artist': self.get_artist(), 'track': temp,
-                           'method': 'track.getinfo', 'format': 'json'}
+                           'artist': self.get_artist(),
+                           'track': self.get_title(),
+                           'method': 'track.getinfo',
+                           'format': 'json'}
         try:
             response = requests.get('http://' + lastFmData.URL + '/2.0/', parameters_dict)
             return response.json()
         except requests.exceptions.RequestException as e:
             print('Error: ' + e.strerror)
+        return None
 
     def __get_xml(self):
         import requests as rl
         import lastFmData
-
         parameters_dict = {'api_key': lastFmData.API_KEY,
                            'artist': self.get_artist(),
                            'track': self.get_title(),
@@ -158,11 +168,11 @@ class TrackTags(object):
             return response.text
         except rl.exceptions.RequestException as e:
             print('Ошибка: ' + e.strerror)
+        return None
 
     def __get_album_xml(self):
         import requests as rl
         import lastFmData
-
         parameters_dict = {'api_key': lastFmData.API_KEY,
                            'artist': self.get_artist(),
                            'album': self.get_album(),
@@ -172,43 +182,47 @@ class TrackTags(object):
             return response.text
         except rl.exceptions.RequestException as e:
             print('Ошибка: ' + e.strerror)
+        return None
 
     @staticmethod
-    def __get_picture_url_from_xml(xml):
+    def __get_picture_url(xml):
         from bs4 import BeautifulSoup
-        result = BeautifulSoup(xml, "xml")
-        if result.find('image', size='extralarge') is not None:
-            return result.find('image', size='extralarge').text
-        elif result.find('image', size='large') is not None:
-            return result.find('image', size='large').text
+        xml_finder = BeautifulSoup(xml, "xml")
+        found = xml_finder.find('image', size='extralarge')
+        if found is not None:
+            return found.text
+        found = xml_finder.find('image', size='large')
+        if found is not None:
+            return found.text
         else:
-            return ''
+            return None
 
     @staticmethod
-    def __get_picture_file(url):
+    def __save_picture_file(url, picture_name):
         import urllib.request as url_request
-        import urllib.error
         import os
         from PIL import Image
-        if url == '':
-            return ''
-        temp_file = 'temp' + url[url.rfind('.'):]
+        if url == "":
+            raise ValueError("Url is empty")
+        temp_file = "temp" + url[url.rfind("."):]
         try:
             picture_bytes = url_request.urlopen(url).read()
-        except urllib.error.URLError:
-            return ''
-        picture = open(temp_file, 'wb')
-        picture.write(picture_bytes)
-        picture.close()
-        pic = Image.open(temp_file)
-        pic.save('temp.jpg')
+        except Exception as e:
+            raise ValueError("Wrong URL: " + str(e))
+        with open(temp_file, "wb") as picture_file:
+            picture_file.write(picture_bytes)
+        picture = Image.open(temp_file)
+        picture.save(picture_name)
         os.unlink(temp_file)
-        return 'temp.jpg'
 
     def __set_picture(self, file_name):
         import os
+        if file_name[0] == "~":
+            file_name = os.path.expanduser(file_name)
+        else:
+            file_name = os.path.abspath(file_name)
         if not os.path.exists(file_name):
-            return
+            raise ValueError("Wrong file name")
         with open(file_name, 'rb') as picture_file:
             picture_bytes = picture_file.read()
             self.set_picture(picture_bytes)
