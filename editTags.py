@@ -96,14 +96,15 @@ class TrackTags(object):
         self.__EasyMP3.save()
 
     def set_picture(self, picture_bytes):
-        from mutagen import id3
+        import mutagen
         from mutagen.mp3 import MP3
         import re
         track = MP3(self.__path)
         for tag_type in list(track.keys()):
             if re.match('APIC', tag_type):
                 track.tags.pop(tag_type)
-        track.tags['APIC:'] = id3.APIC(encoding=3, mime='image/jpeg', type=3, data=picture_bytes)
+        pic = mutagen.id3.APIC(encoding=3, mime='image/jpeg', type=3, data=picture_bytes)
+        track.tags['APIC:'] = pic
         track.save(v1=2)
 
     def set_artist(self, artist):
@@ -127,7 +128,7 @@ class TrackTags(object):
         xml = self.__get_xml()
         parser = BeautifulSoup(xml, "xml")
         album = parser.find("title")
-        if (album is not None):
+        if album is not None:
             self.set_album(album.text)
 
     def __get_json(self):
